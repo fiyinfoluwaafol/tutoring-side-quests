@@ -1,5 +1,5 @@
 .data
-id:     .asciiz "@04003879"   # Replace with your own Howard ID
+id:     .asciiz "@01234567"   # Replace with your own Howard ID
 
 .text
 .globl main
@@ -50,7 +50,7 @@ backward_loop:
     # Print substring starting from computed index
     la   $a0, id              # Load base address of the string
     move $a1, $t3             # Store start index for printing
-    jal  print_substring      # Call the substring printing function
+    jal  print_substring_reversed      # Call the substring printing function
 
     # Print newline after each substring
     la   $a0, 10
@@ -94,3 +94,34 @@ reset:
 
 done:
     jr  $ra             # Return to caller
+
+
+####### FUNCTION TO PRINT A SUBSTRING (REVERSED) #######
+# Arguments:
+#   $a0 = Base address of the string
+#   $a1 = Start index for printing
+# Behavior:
+#   Prints 9 characters in reverse order.
+print_substring_reversed:
+    add $t5, $a0, $a1   # $t5 = Address of the starting character
+    li  $t6, 9          # Counter for number of characters to print
+
+reverse_loop:
+    lb  $a0, 0($t5)     # Load byte (character) at current address
+    li  $v0, 11         # syscall 11: print character
+    syscall             # Print character
+
+    addi $t5, $t5, -1   # Move to the PREVIOUS character (reverse order)
+    addi $t6, $t6, -1   # Decrease counter
+    beqz $t6, done_reverse # If we've printed 9 chars, return
+
+    # Wrap around if we go before index 0
+    la  $t7, id         # Load base address of the string
+    bge  $t5, $t7, reverse_loop  # If $t5 >= base address, continue
+
+    # If $t5 < base address, reset to last character (index 8)
+    add  $t5, $t7, 8        # Move to last character
+    j    reverse_loop       # Continue printing
+
+done_reverse:
+    jr  $ra                 # Return to caller
