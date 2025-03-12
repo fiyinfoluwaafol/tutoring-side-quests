@@ -16,7 +16,7 @@ main:
     ####### PRINT FORWARD #######
     li   $t2, 1               # m = 1 (Loop counter for forward printing)
 forward_loop:
-    bge  $t2, 10, backward_start # If m >= 10, move to backward printing
+    bge  $t2, 10, backward_start # If m >= 10, move to backward printing or could be beq m==10
 
     # Compute the starting index for this line: (m + N) % 9
     add  $t3, $t2, $t0        # t3 = (m + N)
@@ -28,7 +28,7 @@ forward_loop:
     jal  print_substring      # Call the substring printing function
 
     # Print newline after each substring
-    la   $a0, 10              
+    la   $a0, 10       #10 represents the ASCII value for newline character (\n)       
     li   $v0, 11
     syscall                   # Print newline
 
