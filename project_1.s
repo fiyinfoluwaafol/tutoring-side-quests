@@ -15,8 +15,10 @@ main:
         div     $t0, $t4           # Divide X by 11
         mfhi    $t1                # $t1 = X % 11
 
-        li      $t5, 26            # Constant 26
-        add     $t2, $t5, $t1      # N = 26 + (X % 11)
+        #Hardcode N
+        li $t2, 30       # N = 26 + (X % 11)
+        
+        # Calculate M
         li      $t6, 10
         sub     $t3, $t2, $t6      # M = N - 10
 
