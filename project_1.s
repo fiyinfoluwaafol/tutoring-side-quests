@@ -9,31 +9,26 @@ main:
         # -------------------------------
         # Compute base parameters (N and M)
         # -------------------------------
-        # Assume your Howard ID (change the constant below as needed)
-        li      $t0, 12345678      # Howard ID, X
-        li      $t4, 11            # Constant 11 for modulo operation
-        div     $t0, $t4           # Divide X by 11
-        mfhi    $t1                # $t1 = X % 11
 
         #Hardcode N
-        li $t2, 30       # N = 26 + (X % 11)
+        li $t0, 30       # N = 26 + (X % 11)
         
         # Calculate M
-        li      $t6, 10
-        sub     $t3, $t2, $t6      # M = N - 10
+        li      $t1, 10
+        sub     $t2, $t0, $t1      # M = N - 10
 
         # -------------------------------
         # Set up valid letter bounds for lowercase and uppercase digits.
         # Lowercase valid range: 'a' to ('a' + M - 1)
         # Uppercase valid range: 'A' to ('A' + M - 1)
         # -------------------------------
-        li      $t7, 0x61          # ASCII code for 'a'
-        add     $t8, $t7, $t3      # $t8 = 'a' + M
-        addi    $t8, $t8, -1       # $t8 = 'a' + M - 1 (upper bound for lowercase)
+        li      $t3, 0x61          # ASCII code for 'a'
+        add     $t4, $t3, $t2      # $t8 = 'a' + M
+        addi    $t4, $t4, -1       # $t8 = 'a' + M - 1 (upper bound for lowercase)
 
-        li      $t9, 0x41          # ASCII code for 'A'
-        add     $t10, $t9, $t3     # $t10 = 'A' + M
-        addi    $t10, $t10, -1      # $t10 = 'A' + M - 1 (upper bound for uppercase)
+        li      $t5, 0x41          # ASCII code for 'A'
+        add     $t6, $t5, $t2     # $t10 = 'A' + M
+        addi    $t6, $t6, -1      # $t10 = 'A' + M - 1 (upper bound for uppercase)
 
         # -------------------------------
         # Read the 10-character input from the user.
@@ -62,40 +57,40 @@ loop:
         bge     $s0, 10, finish_loop   # If index >= 10, exit loop
 
         # Calculate address of current character: inputBuffer + i
-        la      $t11, inputBuffer
-        add     $t11, $t11, $s0
-        lb      $t12, 0($t11)      # Load character into $t12
+        la      $t7, inputBuffer
+        add     $t7, $t7, $s0
+        lb      $t8, 0($t7)      # Load character into $t12
 
         # Check if character is a digit '0'-'9'
-        li      $t13, 0x30        # ASCII code for '0'
-        li      $t14, 0x39        # ASCII code for '9'
-        blt     $t12, $t13, check_lowercase   # If char < '0', check lowercase range
-        bgt     $t12, $t14, check_lowercase   # If char > '9', check lowercase range
+        li      $t9, 0x30        # ASCII code for '0'
+        li      $s4, 0x39        # ASCII code for '9'
+        blt     $t8, $t9, check_lowercase   # If char < '0', check lowercase range
+        bgt     $8, $s4, check_lowercase   # If char > '9', check lowercase range
 
         # -- Character is a digit --
-        sub     $t15, $t12, $t13   # Convert ASCII digit to numeric value (char - '0')
+        sub     $s5, $t8, $t9   # Convert ASCII digit to numeric value (char - '0')
         j       valid_digit
 
 check_lowercase:
         # Check if character is a lowercase letter in range 'a' to ('a' + M - 1)
-        li      $t13, 0x61        # ASCII code for 'a'
-        blt     $t12, $t13, check_uppercase  # If char < 'a', not lowercase digit
-        bgt     $t12, $t8, check_uppercase   # If char > upper bound, not lowercase digit
+        li      $s6, 0x61        # ASCII code for 'a'
+        blt     $t8, $s6, check_uppercase  # If char < 'a', not lowercase digit
+        bgt     $t8, $t4, check_uppercase   # If char > upper bound, not lowercase digit
 
         # -- Valid lowercase digit: value = 10 + (char - 'a') --
-        sub     $t15, $t12, $t13   # t15 = char - 'a'
-        addi    $t15, $t15, 10     # t15 = 10 + (char - 'a')
+        sub     $s5, $t8, $s6   # t15 = char - 'a'
+        addi    $s5, $s5, 10     # t15 = 10 + (char - 'a')
         j       valid_digit
 
 check_uppercase:
         # Check if character is an uppercase letter in range 'A' to ('A' + M - 1)
-        li      $t13, 0x41        # ASCII code for 'A'
-        blt     $t12, $t13, not_valid  # If char < 'A', not valid
-        bgt     $t12, $t10, not_valid  # If char > upper bound, not valid
+        li      $s7, 0x41        # ASCII code for 'A'
+        blt     $t8, $s7, not_valid  # If char < 'A', not valid
+        bgt     $t8, $t6, not_valid  # If char > upper bound, not valid
 
         # -- Valid uppercase digit: value = 10 + (char - 'A') --
-        sub     $t15, $t12, $t13   # t15 = char - 'A'
-        addi    $t15, $t15, 10     # t15 = 10 + (char - 'A')
+        sub     $s5, $t8, $s7   # t15 = char - 'A'
+        addi    $s5, $s5, 10     # t15 = 10 + (char - 'A')
         j       valid_digit
 
 not_valid:
@@ -108,16 +103,16 @@ valid_digit:
         addi    $s3, $s3, 1
 
         # Depending on the index (first half: indices 0-4, second half: indices 5-9)
-        li      $t16, 5
-        blt     $s0, $t16, add_first
+        li      $t8, 5
+        blt     $s0, $t8, add_first
 
         # Add digit value to second half sum (H)
-        add     $s2, $s2, $t15
+        add     $s2, $s2, $s5
         j       update_index
 
 add_first:
         # Add digit value to first half sum (G)
-        add     $s1, $s1, $t15
+        add     $s1, $s1, $s5
 
 update_index:
         addi    $s0, $s0, 1      # Move to the next character index
@@ -131,11 +126,11 @@ finish_loop:
         beq     $s3, $zero, print_na
 
         # Compute the difference: result = G - H
-        sub     $t17, $s1, $s2
+        sub     $t9, $s1, $s2
 
         # Print the difference as a decimal integer.
         li      $v0, 1           # Syscall for print integer
-        move    $a0, $t17
+        move    $a0, $t9
         syscall
         j       exit_program
 
