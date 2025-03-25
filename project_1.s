@@ -65,7 +65,7 @@ loop:
         li      $t9, 0x30        # ASCII code for '0'
         li      $s4, 0x39        # ASCII code for '9'
         blt     $t8, $t9, check_lowercase   # If char < '0', check lowercase range
-        bgt     $8, $s4, check_lowercase   # If char > '9', check lowercase range
+        bgt     $t8, $s4, check_lowercase   # If char > '9', check lowercase range
 
         # -- Character is a digit --
         sub     $s5, $t8, $t9   # Convert ASCII digit to numeric value (char - '0')
