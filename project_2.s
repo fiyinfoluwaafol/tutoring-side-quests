@@ -28,20 +28,33 @@ main:                         # Start
     li   $a1, 1002          # maximum number of characters to read
     syscall
 
+    # Remove newline character if present
+    la   $t7, SpaceInput    # pointer to the input string
+remove_newline:
+    lb   $t0, 0($t7)
+    beqz $t0, end_remove    # reached end of string
+    li   $t8, 0x0A          # newline character
+    beq  $t0, $t8, replace_null
+    addi $t7, $t7, 1
+    j    remove_newline
+replace_null:
+    sb   $zero, 0($t7)      # replace newline with null terminator
+end_remove:
+
     # Initialize counters:
-    # $s0: flag indicating if any output has been printed (used for semicolon handling)
-    # $t2: current offset into SpaceInput (processed in blocks of 10)
+    # $s0: flag indicating if any output has been printed (for semicolon handling)
+    # $t2: current offset into SpaceInput (processing in blocks of 10)
     li   $t2, 0             # offset for substring start
     li   $s0, 0             # output printed flag
 
 get_substrings:
     beq  $t2, 1000, exit    # If 1000 characters have been processed, exit
 
-    # Check if the current substring (10 characters) has any input left
+    # Check if the current substring has any input left
     la   $t7, SpaceInput
     add  $t7, $t7, $t2
     lb   $t8, 0($t7)
-    beqz $t8, exit         # If the first character is null, no more input exists
+    beqz $t8, exit         # If the first character is null, input is finished
 
     # Set pointer for the current substring and call get_substring_value
     la   $a0, SpaceInput
@@ -67,7 +80,7 @@ no_semicolon:
     move $a0, $t9
     syscall
 
-    # Move to next substring (advance by 10 characters)
+    # Move to the next substring (advance by 10 characters)
     addi $t2, $t2, 10
     j    get_substrings
 
@@ -93,8 +106,8 @@ exit:
     syscall
 
 # Subprogram: get_substring_value
-# Processes a 10-character block, converting valid characters to their base-N numeric values,
-# summing the first five digits as G and the last five as H, then returns G - H.
+# Processes a 10-character block: it converts valid characters into base-N numeric values,
+# sums the first five as G and the last five as H, then returns (G - H).
 # If no valid digit is found, returns 0x7FFFFFFF (NULL indicator).
 get_substring_value:
     li   $t5, 0           # Counter: index within substring (0 to 9)
@@ -121,25 +134,25 @@ check_if_lowercase:
     # Check if character is lowercase letter ('a' to last valid letter)
     li   $t7, 0x61        # ASCII for 'a'
     blt  $t6, $t7, check_if_uppercase
-    addi $t8, $t7, 15      # 'a' + 15 (for example, if M=16, valid range is 'a' to 'p')
+    addi $t8, $t7, 15      # 'a' + 15 (if M=16, valid range is 'a' to 'p')
     bgt  $t6, $t8, check_if_uppercase
-    sub  $t9, $t6, $t7     # char - 'a'
-    addi $t9, $t9, 10      # value is 10 + (char - 'a')
+    sub  $t9, $t6, $t7     # compute (char - 'a')
+    addi $t9, $t9, 10      # value = 10 + (char - 'a')
     j    valid_digit
 
 check_if_uppercase:
     # Check if character is uppercase letter ('A' to last valid letter)
     li   $t7, 0x41        # ASCII for 'A'
     blt  $t6, $t7, invalid
-    addi $t8, $t7, 15      # 'A' + 15 (for example, valid range is 'A' to 'P')
+    addi $t8, $t7, 15      # 'A' + 15 (if M=16, valid range is 'A' to 'P')
     bgt  $t6, $t8, invalid
-    sub  $t9, $t6, $t7     # char - 'A'
-    addi $t9, $t9, 10      # value is 10 + (char - 'A')
+    sub  $t9, $t6, $t7     # compute (char - 'A')
+    addi $t9, $t9, 10      # value = 10 + (char - 'A')
 
 valid_digit:
     addi $s3, $s3, 1       # Increment count of valid digits
 
-    # Add to first half (G) if index < 5, else add to second half (H)
+    # Add digit to first half (G) if index < 5; otherwise, to second half (H)
     li   $t7, 5
     blt  $t5, $t7, add_first
     add  $s2, $s2, $t9      # add to H
