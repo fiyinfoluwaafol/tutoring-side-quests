@@ -54,4 +54,4 @@ For each character in the string:
 ---
 
 ## Program Termination
-After processing one input (one string), the program exits.
+After processing one input (one string), the program exi.
