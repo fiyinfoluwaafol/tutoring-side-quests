@@ -11,6 +11,9 @@ main:                         # Start
     li   $t0, 30            # Base: N = 26 + (X % 11); here N is hard coded to 26
     li   $t1, 10
     sub  $t2, $t0, $t1      # M = N - 10
+    
+    # Save M to a safe register to use in subroutine
+    move $s7, $t2           # Save M in $s7 for later use
 
     # Set up lowercase letter range: 'a' to (a + M - 1)
     li   $t3, 0x61          # ASCII for 'a'
@@ -118,6 +121,7 @@ get_substring_value:
     li   $s1, 0           # sum for first half (G)
     li   $s2, 0           # sum for second half (H)
     li   $s3, 0           # count of valid digits
+    move $t0, $s7         # retrieve M value from $s7
 
 get_character:
     bge  $t5, 10, solve   # if 10 characters processed, finish
@@ -139,7 +143,7 @@ check_if_lowercase:
     # Check if character is a lowercase letter ('a'- last valid)
     li   $t7, 0x61        # ASCII for 'a'
     blt  $t6, $t7, check_if_uppercase
-    addi $t8, $t7, 20     # 'a' + 20 gives the first invalid letter
+    add  $t8, $t7, $t0    # 'a' + M gives the first invalid letter
     bge  $t6, $t8, check_if_uppercase
     sub  $t9, $t6, $t7    # (char - 'a')
     addi $t9, $t9, 10     # value = 10 + (char - 'a')
@@ -151,7 +155,7 @@ check_if_uppercase:
     # Check if character is an uppercase letter ('A'- last valid)
     li   $t7, 0x41        # ASCII for 'A'
     blt  $t6, $t7, invalid
-    addi $t8, $t7, 20     # 'A' + 20 gives the first invalid letter
+    add  $t8, $t7, $t0    # 'A' + M gives the first invalid letter
     bge  $t6, $t8, invalid
     sub  $t9, $t6, $t7    # (char - 'A')
     addi $t9, $t9, 10     # value = 10 + (char - 'A')
