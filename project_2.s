@@ -8,7 +8,7 @@ semicolon:  .asciiz ";"
 
 main:                         # Start
     # Hard code N and compute M
-    li   $t0, 26            # Base: N = 26 + (X % 11); here N is hard coded to 26
+    li   $t0, 30            # Base: N = 26 + (X % 11); here N is hard coded to 26
     li   $t1, 10
     sub  $t2, $t0, $t1      # M = N - 10
 
@@ -60,10 +60,11 @@ get_substrings:
     la   $a0, SpaceInput
     add  $a0, $a0, $t2
     jal  get_substring_value
+    move $t9, $v0         # **Preserve result immediately**
 
     # Check for NULL result indicator (0x7FFFFFFF)
     li   $t4, 0x7FFFFFFF
-    beq  $v0, $t4, print_null
+    beq  $t9, $t4, print_null
 
     # Print semicolon if this is not the first output
     beqz $s0, no_semicolon
@@ -73,11 +74,8 @@ get_substrings:
 
 no_semicolon:
     li   $s0, 1           # mark that output has been printed
-
-    # Print the computed result (G - H)
-    move $t9, $v0         # preserve the result
     li   $v0, 1           # syscall code for printing integer
-    move $a0, $t9
+    move $a0, $t9         # use the preserved result
     syscall
 
     # Move to the next substring (advance by 10 characters)
@@ -133,20 +131,21 @@ check_digit:
     blt  $t6, $t7, check_if_lowercase
     bgt  $t6, $t8, check_if_lowercase
     sub  $t9, $t6, $t7    # convert ASCII digit to integer
+    nop                   # ensure $t9 is updated
     j    valid_digit
+    nop
 
 check_if_lowercase:
     # Check if character is a lowercase letter ('a'- last valid)
     li   $t7, 0x61        # ASCII for 'a'
     blt  $t6, $t7, check_if_uppercase
-    # Note: The proper range should be 'a' to (a + M - 1).
-    # In this sample, expected valid lowercase letters are 'a' to 't' (if M=20).
-    # Adjust the constant accordingly. Here we replace 15 with 20.
     addi $t8, $t7, 20     # 'a' + 20 gives the first invalid letter
     bge  $t6, $t8, check_if_uppercase
     sub  $t9, $t6, $t7    # (char - 'a')
     addi $t9, $t9, 10     # value = 10 + (char - 'a')
+    nop                   # ensure $t9 is updated
     j    valid_digit
+    nop
 
 check_if_uppercase:
     # Check if character is an uppercase letter ('A'- last valid)
@@ -156,6 +155,9 @@ check_if_uppercase:
     bge  $t6, $t8, invalid
     sub  $t9, $t6, $t7    # (char - 'A')
     addi $t9, $t9, 10     # value = 10 + (char - 'A')
+    nop                   # ensure $t9 is updated
+    j    valid_digit
+    nop
 
 valid_digit:
     addi $s3, $s3, 1      # increment count of valid digits
@@ -174,7 +176,6 @@ invalid:
 
 pad_space:
     li   $t6, 0x20        # substitute null with space
-    # Continue to check (a space will fall into invalid and be skipped)
     j    check_digit
 
 move_index:
@@ -183,7 +184,6 @@ move_index:
     j    get_character
 
 solve:
-    # If no valid digit was found, return NULL indicator; else return (G - H)
     beqz $s3, save_null
     sub  $v0, $s1, $s2    # result = G - H
     jr   $ra
