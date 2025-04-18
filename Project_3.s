@@ -2,6 +2,7 @@
 SpaceInput: .space 1002         # Up to 1000 characters + newline + null terminator
 null_msg:   .asciiz "NULL"
 semicolon:  .asciiz ";"
+.align 2
 strint:     .space 4000         # Array for integer results (each is 4 bytes)
 
 .text
@@ -94,137 +95,145 @@ exit_main:
 #------------------------------------------------------------
 # process_string:
 #   Splits the input string into 10-character substrings.
-#   For each substring, it pushes the substring address onto the
-#   stack, calls get_substring_value, pops the returned integer,
-#   and stores it in the array passed in $a1.
+#   For each substring, it calls get_substring_value,
+#   and stores the result in the array passed in $a1.
 #   Returns in $v0 the count of substrings processed.
 #------------------------------------------------------------
 process_string:
-    # $a0 = pointer to input string,
-    # $a1 = pointer to integer array (strint)
-    move $t0, $a0         # $t0 is our current pointer into the input string
-    move $t7, $zero       # $t7 will count the number of substrings
+    # Save $ra for nested calls
+    addi $sp, $sp, -4
+    sw   $ra, 0($sp)
+    
+    # Save original $a1 value (array pointer) for later use 
+    move $t8, $a1
+    
+    # Preserve the input pointer
+    move $t0, $a0
+    
+    # Initialize counters
+    li   $t7, 0           # substring count
 
 proc_str_loop:
-    lb  $t1, 0($t0)       # get first character of current substring
-    beq  $t1, $zero, proc_str_end  # if null, no more input
-
-    # Push current substring pointer onto stack.
-    addi $sp, $sp, -4
-    sw   $t0, 0($sp)
-
-    # Call get_substring_value. Its parameter is via the stack.
+    # Check if string is exhausted
+    lb   $t1, 0($t0)
+    beqz $t1, proc_str_end
+    
+    # Set up argument and call get_substring_value
+    move $a0, $t0
     jal  get_substring_value
-
-    # After return, the result has been pushed onto the stack.
-    lw   $t2, 0($sp)      # pop the result from the stack
-    addi $sp, $sp, 4
-
-    # Store result into the integer array.
-    sw   $t2, 0($a1)
-    addi $a1, $a1, 4      # advance the array pointer
-    addi $t7, $t7, 1      # increment the substring count
-
-    # Move input pointer ahead by 10 characters.
+    
+    # Store result in array at current position
+    sw   $v0, 0($t8)
+    
+    # Move to next array position and increment count
+    addi $t8, $t8, 4
+    addi $t7, $t7, 1
+    
+    # Move to next substring (10 characters ahead)
     addi $t0, $t0, 10
     j    proc_str_loop
 
 proc_str_end:
-    move $v0, $t7         # return substring count in $v0
+    # Return count in $v0
+    move $v0, $t7
+    
+    # Restore $ra and return
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 4
     jr   $ra
 
 #------------------------------------------------------------
 # get_substring_value:
-#   Processes exactly 10 characters pointed to by the substring address
-#   (which is passed via the stack). For each character:
-#       - If it is null, substitutes a space.
-#       - Valid digits are:
-#             '0'-'9'   (digit = char - '0')
-#             'a'-('a'+M–1) (digit = 10 + (char - 'a'))
-#             'A'-('A'+M–1) (digit = 10 + (char - 'A'))
-#       - In the first 5 positions, valid digits contribute to sum G.
-#         In the last 5 positions, they contribute to sum H.
-#   It returns (via the stack) G – H; if no valid digit is found, returns 0x7FFFFFFF.
+#   Processes exactly 10 characters from the substring in $a0.
+#   For any character read as null (due to a short last substring),
+#   it substitutes a space (padding).
+#   It then converts valid digits (as specified) into a base-N number.
+#   The first five valid characters (ignoring non-digit characters)
+#   are summed as G and the rest as H. Returns G - H.
+#   If no valid digit is found, returns 0x7FFFFFFF.
 #------------------------------------------------------------
 get_substring_value:
-    # Pop the substring pointer from the stack into $a0.
-    lw   $a0, 0($sp)
-    addi $sp, $sp, 4
+    # Save s-registers that will be modified
+    addi $sp, $sp, -12
+    sw   $s1, 8($sp)
+    sw   $s2, 4($sp)
+    sw   $s3, 0($sp)
+    
+    # Initialize counters for processing
+    li   $t5, 0           # Character index (0 to 9)
+    li   $s1, 0           # Sum for first half (G)
+    li   $s2, 0           # Sum for second half (H)
+    li   $s3, 0           # Count of valid digits
 
-    li   $t0, 0           # index counter from 0 to 9
-    li   $s1, 0           # sum for first half (G)
-    li   $s2, 0           # sum for second half (H)
-    li   $s3, 0           # count of valid digits
+get_character:
+    bge  $t5, 10, solve   # If 10 characters processed, finish
+    lb   $t6, 0($a0)      # Load current character
+    beqz $t6, pad_space   # If null, substitute with space
+    j    check_digit
 
-gsv_loop:
-    bge  $t0, 10, gsv_compute  # finished 10 characters
+pad_space:
+    li   $t6, 0x20        # Space character (ASCII 32)
 
-    lb   $t1, 0($a0)      # load the current character
-    beq  $t1, $zero, gsv_pad  # if null, substitute with space
-    move $t2, $t1         # else, use the character as is
-    j    gsv_check
+check_digit:
+    # Check if character is a digit ('0'-'9')
+    li   $t7, 0x30        # ASCII for '0'
+    li   $t8, 0x39        # ASCII for '9'
+    blt  $t6, $t7, check_if_lowercase
+    bgt  $t6, $t8, check_if_lowercase
+    sub  $t9, $t6, $t7    # Convert ASCII digit to integer
+    j    valid_digit
 
-gsv_pad:
-    li   $t2, 0x20       # pad with a space (ASCII 32)
+check_if_lowercase:
+    # Check if character is a lowercase letter ('a'- last valid)
+    li   $t7, 0x61        # ASCII for 'a'
+    blt  $t6, $t7, check_if_uppercase
+    add  $t8, $t7, $s7    # 'a' + M gives the first invalid letter
+    bge  $t6, $t8, check_if_uppercase
+    sub  $t9, $t6, $t7    # (char - 'a')
+    addi $t9, $t9, 10     # Value = 10 + (char - 'a')
+    j    valid_digit
 
-gsv_check:
-    # Check if character is a digit ('0' - '9')
-    li   $t3, 0x30
-    li   $t4, 0x39
-    blt  $t2, $t3, gsv_check_lower
-    bgt  $t2, $t4, gsv_check_lower
-    sub  $t5, $t2, $t3   # digit value = t2 - '0'
-    j    gsv_valid
+check_if_uppercase:
+    # Check if character is an uppercase letter ('A'- last valid)
+    li   $t7, 0x41        # ASCII for 'A'
+    blt  $t6, $t7, invalid
+    add  $t8, $t7, $s7    # 'A' + M gives the first invalid letter
+    bge  $t6, $t8, invalid
+    sub  $t9, $t6, $t7    # (char - 'A')
+    addi $t9, $t9, 10     # Value = 10 + (char - 'A')
+    j    valid_digit
 
-gsv_check_lower:
-    # Check if character is lowercase letter 'a' to ('a'+M-1)
-    li   $t3, 0x61
-    blt  $t2, $t3, gsv_check_upper
-    add  $t4, $t3, $s7   # upper bound = 'a' + M
-    bge  $t2, $t4, gsv_check_upper
-    sub  $t5, $t2, $t3   # digit value = (char - 'a')
-    addi $t5, $t5, 10    # add 10 to convert to proper digit value
-    j    gsv_valid
+invalid:
+    # Not a valid digit, skip to next character
+    j    move_index
 
-gsv_check_upper:
-    # Check if character is uppercase letter 'A' to ('A'+M-1)
-    li   $t3, 0x41
-    blt  $t2, $t3, gsv_invalid
-    add  $t4, $t3, $s7   # upper bound = 'A' + M
-    bge  $t2, $t4, gsv_invalid
-    sub  $t5, $t2, $t3   # digit value = (char - 'A')
-    addi $t5, $t5, 10
-    j    gsv_valid
+valid_digit:
+    addi $s3, $s3, 1      # Increment count of valid digits
+    li   $t7, 5
+    blt  $t5, $t7, add_first   # If in first 5 positions, add to G
+    add  $s2, $s2, $t9    # Else, add to H
+    j    move_index
 
-gsv_invalid:
-    # Invalid character: do nothing
-    j    gsv_next
+add_first:
+    add  $s1, $s1, $t9    # Add digit to G
 
-gsv_valid:
-    addi $s3, $s3, 1     # increment count of valid digits
-    li   $t6, 5
-    blt  $t0, $t6, gsv_add_first  # if position less than 5 add to G...
-    add  $s2, $s2, $t5   # else, add to H
-    j    gsv_next
+move_index:
+    addi $t5, $t5, 1      # Increment index
+    addi $a0, $a0, 1      # Move pointer to next character
+    j    get_character
 
-gsv_add_first:
-    add  $s1, $s1, $t5   # add digit value to sum G
+solve:
+    beqz $s3, save_null   # If no valid digits found
+    sub  $v0, $s1, $s2    # Result = G - H
+    j    gsv_restore
 
-gsv_next:
-    addi $t0, $t0, 1
-    addi $a0, $a0, 1    # advance pointer to next character
-    j    gsv_loop
+save_null:
+    li   $v0, 0x7FFFFFFF  # NULL indicator
 
-gsv_compute:
-    beq  $s3, $zero, gsv_return_null  # if no valid digits, return NULL indicator
-    sub  $t7, $s1, $s2   # result = G - H
-    j    gsv_push
-
-gsv_return_null:
-    li   $t7, 0x7FFFFFFF
-
-gsv_push:
-    # Push result onto stack as the return value.
-    addi $sp, $sp, -4
-    sw   $t7, 0($sp)
+gsv_restore:
+    # Restore s-registers
+    lw   $s3, 0($sp)
+    lw   $s2, 4($sp)
+    lw   $s1, 8($sp)
+    addi $sp, $sp, 12
     jr   $ra
